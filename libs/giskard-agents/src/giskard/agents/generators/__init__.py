@@ -1,3 +1,4 @@
+from ._types import FinishReason
 from .base import BaseGenerator, GenerationParams, Response
 from .litellm_generator import LiteLLMGenerator, LiteLLMRetryMiddleware
 from .middleware import (
@@ -11,6 +12,7 @@ from .middleware import (
 Generator = LiteLLMGenerator
 
 __all__ = [
+    "FinishReason",
     "Generator",
     "GenerationParams",
     "Response",

@@ -7,7 +7,7 @@ from giskard.core import BaseRateLimiter, Discriminated, discriminated_base
 from pydantic import Field
 
 from ..chat import Message, Role
-from ._types import GenerationParams, Response
+from ._types import FinishReason, GenerationParams, Response
 from .middleware import (
     CompletionMiddleware,
     NextFn,
@@ -22,17 +22,51 @@ if TYPE_CHECKING:
 
 @discriminated_base
 class BaseGenerator(Discriminated, ABC):
-    """Base class for all generators."""
+    """Base class for all generators.
+
+    Each subclass is responsible for translating between the internal
+    ``Message`` / ``Tool`` objects and whatever wire format its provider
+    expects.  Workflow, tool, and chat code work exclusively with
+    ``Message`` objects and never call provider APIs directly.
+    """
 
     params: GenerationParams = Field(default_factory=GenerationParams)
     retry_policy: RetryPolicy | None = Field(default=None)
     rate_limiter: BaseRateLimiter | None = Field(default=None)
     middlewares: list[CompletionMiddleware] = Field(default_factory=list)
 
+    # -- Completion pipeline -----------------------------------------------
+
     @abstractmethod
+    async def _call_model(
+        self,
+        messages: list[Message],
+        params: GenerationParams,
+    ) -> tuple[Message, FinishReason]:
+        """Call the provider and return the response as an internal Message.
+
+        Subclasses handle all serialization/deserialization internally.
+
+        Parameters
+        ----------
+        messages : list[Message]
+            Conversation messages in internal format.
+        params : GenerationParams
+            Merged generation parameters (including tools).
+
+        Returns
+        -------
+        tuple[Message, FinishReason]
+            The assistant message and the finish reason.
+        """
+        raise NotImplementedError
+
     async def _complete(
         self, messages: list[Message], params: GenerationParams | None = None
-    ) -> Response: ...
+    ) -> Response:
+        merged = self.params.merge(params)
+        message, finish_reason = await self._call_model(messages, merged)
+        return Response(message=message, finish_reason=finish_reason)
 
     async def complete(
         self,
