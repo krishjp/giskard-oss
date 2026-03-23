@@ -531,6 +531,11 @@ class SuiteResult(BaseResult, frozen=True):
             return 1.0
         return self.passed_count / denominator
 
+    @property
+    def failures_and_errors(self) -> list[ScenarioResult[Any, Any]]:
+        """Return a list of scenario results that failed or errored."""
+        return [r for r in self.results if r.failed or r.errored]
+
     def __rich_console__(
         self, console: Console, options: ConsoleOptions
     ) -> RenderResult:
@@ -543,7 +548,7 @@ class SuiteResult(BaseResult, frozen=True):
         )
         yield ""
 
-        failures_and_errors = [r for r in self.results if r.failed or r.errored]
+        failures_and_errors = self.failures_and_errors
 
         if failures_and_errors:
             n_loggable_failures = 20  # TODO: make this configurable
